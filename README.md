@@ -47,11 +47,20 @@ audio-native LLM was evaluated and rejected for production use) are in
 
 ## Setup — inference service
 
+System dependencies: `ffmpeg` (audio normalization) and `espeak-ng` (only
+needed to generate synthetic test audio for the test suite — not used at
+inference time).
+
 ```bash
+apt-get install -y ffmpeg espeak-ng
+
 cd inference
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
-./.venv/bin/uvicorn inference.api.main:app --host 127.0.0.1 --port 8001
+./.venv/bin/pip install -r requirements-ml.txt   # faster-whisper, silero-vad
+./.venv/bin/pip install -r requirements-dev.txt  # pytest, for running tests
+cd ..  # back to repo root
+inference/.venv/bin/uvicorn inference.api.main:app --host 127.0.0.1 --port 8001
 ```
 
 Verify:
@@ -60,13 +69,19 @@ curl http://127.0.0.1:8001/health
 # {"status":"ok","ffmpeg_available":true}
 ```
 
-Note: run uvicorn from the **repository root** (not from inside `inference/`)
-so the `inference.*` package imports resolve — i.e.
-`inference/.venv/bin/uvicorn inference.api.main:app ...` from `/var/www/autoace.tdlv.dev`.
+Run the pipeline test suite (generates synthetic speech via espeak-ng, runs
+it through ffmpeg normalization -> VAD -> ASR, and checks the results):
+```bash
+PYTHONPATH=. inference/.venv/bin/pytest inference/tests/ -v
+```
 
-Heavier ML dependencies (faster-whisper, librosa, transformers, pyannote)
-are introduced in `inference/requirements-ml.txt` starting at Milestone 2,
-kept separate from the fast-installing core service dependencies.
+Note: run uvicorn and pytest from the **repository root** (not from inside
+`inference/`) so the `inference.*` package imports resolve.
+
+Heavier ML dependencies (faster-whisper, silero-vad; later librosa,
+transformers, pyannote) live in `inference/requirements-ml.txt`, kept
+separate from the fast-installing core service dependencies in
+`requirements.txt`.
 
 ## Setup — dashboard
 
@@ -79,12 +94,25 @@ npm run dev -- -p 3001
 ## Development plan / milestones
 
 1. ✅ Repo scaffold, ffmpeg preprocessing, FastAPI + Next.js skeletons
-2. VAD (silero-vad) + local ASR (faster-whisper)
+2. ✅ VAD (silero-vad) + local ASR (faster-whisper) — see measured latency below
 3. Emotion path: prosody features + SER model + text-emotion model + fusion
 4. Noise / audio-quality / overlap / silence modules + synthetic validation set
 5. Schema aggregation + confidence calibration + batch CLI
 6. Dashboard: auth, upload/validate, batch processing, review, CSV/JSON export
-7. Deployment (nginx + systemd + TLS) to autoace.tdlv.dev
+7. ✅ Deployment (nginx + systemd + TLS) to autoace.tdlv.dev — live, but still
+   serving the default Next.js placeholder until Milestone 6 lands
+
+### Measured so far (2 vCPU / 3.8GB, no GPU — the actual deployment target)
+
+On a 13.2s synthetic test clip, warm (model already loaded in process):
+- VAD (silero-vad, ONNX): ~0.3s
+- ASR (faster-whisper "small", int8): ~7.3s (~0.55x realtime, i.e. faster
+  than realtime — a 3-minute call transcribes in under 2 minutes)
+- Model load (one-time per process, not per file): ASR ~2.3s, held warm
+  across requests via in-process caching
+
+Full latency writeup with more data points lands in `docs/latency_analysis.md`
+once the full pipeline exists.
 
 ## Deliverables index
 
