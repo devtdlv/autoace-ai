@@ -1,0 +1,30 @@
+# Confidential audio / labels — never committed
+data/labeled_samples/*
+!data/labeled_samples/.gitkeep
+*.wav
+*.mp3
+*.m4a
+*.flac
+uploads/
+batches/
+
+# Python
+inference/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+inference/models/*
+!inference/models/.gitkeep
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
