@@ -166,6 +166,15 @@ async def create_batch(
         content = await archive.read()
         with zipfile.ZipFile(io.BytesIO(content)) as zf:
             for member in zf.namelist():
+                # macOS Finder/Archive Utility ZIPs include a __MACOSX/
+                # sibling entry per real file (AppleDouble resource forks,
+                # named "._<original>") — same extension as the real audio
+                # file, but not real audio. Left in, these would either
+                # fail to decode as bogus per-call entries or, worse,
+                # spuriously trip the "uploaded but not in manifest"
+                # validation check and block an otherwise-valid batch.
+                if member.startswith("__MACOSX/") or Path(member).name.startswith("._"):
+                    continue
                 name = Path(member).name
                 if not name:
                     continue

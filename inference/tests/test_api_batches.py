@@ -1,4 +1,6 @@
+import io
 import json
+import zipfile
 
 from inference.tests.conftest import API_TEST_PASSWORD, API_TEST_USERNAME, REQUIRES_ESPEAK
 
@@ -80,6 +82,36 @@ def test_create_batch_without_manifest_processes_all_uploaded_files(api_client, 
 
     detail = api_client.get(f"/batches/{batch_id}").json()
     assert detail["batch"]["manifest_name"] == "1 file(s), no manifest"
+    assert detail["calls"][0]["filename"] == "call.wav"
+
+
+@REQUIRES_ESPEAK
+def test_create_batch_ignores_macos_zip_metadata_entries(api_client, clean_call):
+    """A ZIP built by macOS Archive Utility includes __MACOSX/._call.wav
+    AppleDouble entries alongside real files — these must not be treated
+    as audio or trip the 'uploaded but not in manifest' validation check.
+    """
+    _login(api_client)
+    with open(clean_call, "rb") as f:
+        audio_bytes = f.read()
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zf:
+        zf.writestr("call.wav", audio_bytes)
+        zf.writestr("__MACOSX/._call.wav", b"fake resource fork data")
+        zf.writestr("labels.csv", "name\ncall.wav\n")
+    zip_buffer.seek(0)
+
+    resp = api_client.post(
+        "/batches",
+        files={"archive": ("evaluation_batch.zip", zip_buffer.read(), "application/zip")},
+    )
+    assert resp.status_code == 200
+    batch_id = resp.json()["batch_id"]
+    assert resp.json()["total_calls"] == 1
+
+    detail = api_client.get(f"/batches/{batch_id}").json()
+    assert len(detail["calls"]) == 1
     assert detail["calls"][0]["filename"] == "call.wav"
 
 

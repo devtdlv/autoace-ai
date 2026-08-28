@@ -75,6 +75,40 @@ def test_calm_voiced_but_dissatisfied_wording_is_still_negative():
     assert result.intensity == EmotionalIntensity.low
 
 
+def test_audio_only_approach_misses_what_fusion_catches():
+    """Documents the trial spec's requested comparison of >=2 materially
+    different approaches (Section 9): an audio-foundation-model-only
+    approach (SER on the waveform, no transcript) vs. this system's actual
+    fused approach (SER + text-emotion + prosody). Same calm-voiced,
+    lexically-negative input to both — SER alone has no way to hear
+    dissatisfaction in a call where the *words*, not the tone of voice,
+    carry it; only the transcript-aware fused approach catches it. See
+    docs/technical_memo.md's "Approaches compared" section.
+    """
+    calm_prosody = _prosody(pitch_range_hz=20.0, energy_rms_std=0.01)
+    confidently_neutral_ser = {"neu": 0.9, "hap": 0.05, "ang": 0.03, "sad": 0.02}
+    clearly_negative_text = {
+        "anger": 0.7, "disgust": 0.1, "fear": 0.02, "joy": 0.0,
+        "neutral": 0.05, "sadness": 0.1, "surprise": 0.03,
+    }
+    uninformative_text = {
+        "anger": 1 / 7, "disgust": 1 / 7, "fear": 1 / 7, "joy": 1 / 7,
+        "neutral": 1 / 7, "sadness": 1 / 7, "surprise": 1 / 7,
+    }
+
+    audio_only_approach = classify_emotion(
+        calm_prosody, confidently_neutral_ser, uninformative_text, asr_confidence=0.0,
+    )
+    fused_approach = classify_emotion(
+        calm_prosody, confidently_neutral_ser, clearly_negative_text, asr_confidence=0.95,
+    )
+
+    assert audio_only_approach.tone == EmotionalTone.neutral  # misses it entirely
+    assert fused_approach.tone in (
+        EmotionalTone.frustrated, EmotionalTone.upset, EmotionalTone.distressed,
+    )  # catches it
+
+
 def test_model_disagreement_lowers_confidence():
     disagreeing_ser = {"neu": 0.1, "hap": 0.8, "ang": 0.05, "sad": 0.05}  # positive
     disagreeing_text = {

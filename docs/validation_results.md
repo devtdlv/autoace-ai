@@ -7,7 +7,7 @@ reporting.
 
 ## 1. What exists: directional synthetic-condition tests (real, run in CI-equivalent locally)
 
-`inference/tests/` (30 tests, all passing — run via
+`inference/tests/` (50 tests, all passing — run via
 `PYTHONPATH=. inference/.venv/bin/pytest inference/tests/ -v`) validates
 that each Milestone 3-5 module moves in the *correct direction* under a
 known, deliberately-constructed synthetic condition, generated via
@@ -20,8 +20,22 @@ production calls:
 | `noise.py` | clean vs. pink-noise-mixed | `present`/`severity` correctly flip on when non-speech-region energy rises; reference-bank load itself is checked (15 ESC-50-derived category signatures) |
 | `overlap.py` | single voice vs. two simultaneous espeak voices (different voice IDs, mixed) | the fallback heuristic's raw candidate-frame ratio is higher for the two-voice clip than the single-voice clip |
 | `silence.py` | synthetic gap-position and gap-length cases (unit-level, no audio needed) + a real ~12s injected silence vs. a normal-paced clean call | correctly flags/doesn't flag `long_silence_present` |
-| `emotion.py` | fabricated prosody/SER-prob/text-prob inputs covering each branch of the fusion's mapping table (clear positive, clear neutral, high-agitation negative, calm-voiced-but-lexically-negative, model disagreement) | `classify_emotion`'s bucket/intensity/confidence logic is correct on inputs with known expected outcomes; a full real-model integration smoke test confirms the two transformer models load and produce schema-valid output |
-| `aggregate.py` | fabricated component results at varying quality/confidence levels | `confidence` decreases under severely-impaired quality and low ASR confidence, as designed |
+| `emotion.py` | fabricated prosody/SER-prob/text-prob inputs covering each branch of the fusion's mapping table (clear positive, clear neutral, high-agitation negative, calm-voiced-but-lexically-negative, model disagreement, audio-only vs. fused approach comparison) | `classify_emotion`'s bucket/intensity/confidence logic is correct on inputs with known expected outcomes; a full real-model integration smoke test confirms the two transformer models load and produce schema-valid output |
+| `aggregate.py` | fabricated component results at varying quality/confidence levels, plus `fallback_prediction()`'s own schema validity | `confidence` decreases under severely-impaired quality and low ASR confidence, as designed; the failure-path guess is always schema-valid |
+
+### Hidden-set robustness stress test (manual, not part of the pytest suite)
+
+Run directly against the pipeline: a normal clip re-encoded as mp3, m4a,
+stereo/44.1kHz, and telephone-band 8kHz; a 0.05s clip; 3s of pure silence;
+5s of pure noise (no speech); and a genuinely corrupt (non-audio) file.
+Every real-audio variant processed without error; only the corrupt file
+failed, and it produced the schema-valid `fallback_prediction()` rather
+than an empty/missing result. This is what motivated broadening
+`AUDIO_EXTENSIONS` (a previously-unrecognized real format was being
+silently dropped, not even reported as a failure) and adding the
+fallback-prediction safety net — see
+`docs/failure_modes_and_next_steps.md` and the commit that introduced
+both.
 
 This is real evidence the *mechanism* of each module works as intended. It
 is **not** a quantitative accuracy measurement — none of these synthetic

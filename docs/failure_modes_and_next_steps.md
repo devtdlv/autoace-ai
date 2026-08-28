@@ -24,6 +24,15 @@
   is coarser than the 5-class trial target — mapping `sad` into the
   frustrated/upset/distressed ladder purely via prosody agitation is a
   simplification.
+- **Only two of the spec's suggested "materially different approaches"
+  were actually compared** (audio-foundation-model-only vs. the fused
+  system — see `docs/technical_memo.md`). A third arm — acoustic
+  (prosody) features alone driving a lightweight rule/classifier, with no
+  learned SER or text model at all — was not built and evaluated as a
+  fully separate, independently-scorable approach given the time
+  available. This is the highest-value next experiment: it would show
+  directly how much the two learned models are actually contributing
+  versus a near-zero-cost deterministic approach.
 
 ## Noise (`noise.py`)
 
@@ -68,6 +77,12 @@
   token with the appropriate license acceptance and swap in pyannote's OSD
   pipeline — `overlap.py`'s `detect_overlap` signature doesn't need to
   change, only its implementation.
+- **The candidate-frame-ratio threshold was originally miscalibrated below
+  the single-speaker noise floor** — measured on real single-voice test
+  clips (0.12-0.13) vs. a genuine two-voice mix (0.23), the original 0.08
+  threshold flagged every single-speaker clip tested as overlapping.
+  Raised to 0.18 (still a small-sample calibration, not fit on labeled
+  data — the same caveat as every other heuristic constant here).
 
 ## Long silence (`silence.py`)
 

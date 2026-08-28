@@ -24,6 +24,45 @@ Two architectures were considered for the analysis pipeline:
    (measured: ~2.3GB peak RSS with every model loaded — see
    `docs/latency_analysis.md`) and nothing ever leaves the box.
 
+## Baseline and approach comparison (per the trial's experimental-process guidance)
+
+**Baseline**: a trivial majority-class predictor — `neutral`/`low` tone,
+no noise, `severely_impaired` quality, `confidence=0.0`
+(`schema.fallback_prediction`) — is the floor every real prediction is
+implicitly compared against. It's also what the system falls back to for
+a file it genuinely cannot process (see `docs/failure_modes_and_next_steps.md`),
+so "no worse than the baseline" holds even in that failure case, not just
+as a conceptual reference point.
+
+**Two materially different approaches compared for `emotional_tone`**, as
+requested (e.g. "audio foundation model vs. acoustic features + lightweight
+classifier"):
+
+1. **Audio-foundation-model-only**: the wav2vec2 SER model on the waveform
+   alone, no transcript.
+2. **Fused (chosen)**: SER + a text-emotion model on the ASR transcript +
+   prosody-derived intensity, per `emotion.py`.
+
+These are not just described — `inference/tests/test_emotion.py::test_audio_only_approach_misses_what_fusion_catches`
+runs both against the same calm-voiced-but-lexically-negative input:
+approach 1 reports `neutral` (SER hears a flat, unremarkable voice —
+there's nothing in the waveform alone to detect), approach 2 correctly
+reports a negative tone, because it can read the words. This is the
+concrete evidence for fusing rather than shipping the foundation model
+alone, beyond the design rationale already documented in `emotion.py`'s
+docstring.
+
+A third arm — acoustic features (prosody) *alone*, with no SER model, as
+a lightweight-classifier baseline — was not built as a separate
+standalone system in the time available; the closest equivalent is that
+prosody already runs as an independent input inside the fusion (setting
+intensity, per `_agitation_score`), and its known limitation on its own
+(it has no valence axis — it can detect agitation, not positive-vs-
+negative) is documented in `emotion.py`'s docstring and
+`docs/failure_modes_and_next_steps.md`. Building it out as a fully
+separate, independently-scorable third approach is the first thing to do
+with more time — see `docs/failure_modes_and_next_steps.md`.
+
 ## Per-field method summary
 
 | Field | Method | Module |
