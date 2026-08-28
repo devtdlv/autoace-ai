@@ -116,13 +116,21 @@ def analyze_quality(wav_path: str) -> QualityResult:
     dropout = _dropout_ratio(audio, sr)
     echo = _echo_score(audio, sr)
 
-    # Each penalty in [0, 1], higher = worse. Thresholds are heuristic
-    # starting points (see module docstring), calibrated later against
-    # labeled/synthetic validation data.
-    clipping_penalty = min(1.0, clipping / 0.02)                          # >2% clipped samples -> max
-    muffled_penalty = min(1.0, max(0.0, (0.02 - high_freq_ratio) / 0.02)) # near-zero energy above 3.4kHz -> max
-    dropout_penalty = min(1.0, dropout / 0.1)                             # >10% of windows dropping out -> max
-    echo_penalty = min(1.0, max(0.0, (echo - 0.15) / 0.35))
+    # Each penalty in [0, 1], higher = worse. Originally calibrated purely
+    # on synthetic espeak-ng/ffmpeg-filtered audio; sanity-checked against
+    # the 3 real labeled production calls (all labeled "clear") and found
+    # badly miscalibrated for real telephone-band speech — see
+    # docs/failure_modes_and_next_steps.md for the measured numbers behind
+    # each constant below. Real G.711-style phone audio naturally carries
+    # almost no energy above 3.4kHz (that's not a defect, it's the codec),
+    # and natural speech rhythm/breathing produces autocorrelation and
+    # brief-energy-dip signatures that resemble this module's echo/dropout
+    # heuristics even with zero real impairment — both were flagging every
+    # one of the 3 real "clear" calls as severely impaired before this fix.
+    clipping_penalty = min(1.0, clipping / 0.02)                            # >2% clipped samples -> max
+    muffled_penalty = min(1.0, max(0.0, (0.0005 - high_freq_ratio) / 0.0005))  # only extreme lowpass, not normal telephone band
+    dropout_penalty = min(1.0, dropout / 0.2)                               # normal speech pauses measured ~0.04-0.09 on real calls
+    echo_penalty = min(1.0, max(0.0, (echo - 0.6) / 0.3))                   # real speech rhythm alone measured 0.32-0.58
 
     penalties = [clipping_penalty, muffled_penalty, dropout_penalty, echo_penalty]
     # Divide by 2, not 4: a single fully-maxed artifact should already tank
