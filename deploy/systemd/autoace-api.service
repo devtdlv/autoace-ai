@@ -7,6 +7,7 @@ Type=simple
 User=autoace
 Group=autoace
 WorkingDirectory=/var/www/autoace.tdlv.dev
+EnvironmentFile=/var/www/autoace.tdlv.dev/.env
 ExecStart=/var/www/autoace.tdlv.dev/inference/.venv/bin/uvicorn inference.api.main:app --host 127.0.0.1 --port 8001
 Restart=on-failure
 RestartSec=3

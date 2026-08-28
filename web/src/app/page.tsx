@@ -1,3 +1,5 @@
+import BatchDashboard from "@/components/BatchDashboard";
+
 type Milestone = {
   label: string;
   status: "done" | "in_progress" | "todo";
@@ -17,22 +19,22 @@ const milestones: Milestone[] = [
   },
   {
     label: "Emotional tone analysis",
-    status: "in_progress",
+    status: "done",
     detail: "Detects tone (neutral/satisfied/frustrated/upset/distressed) and intensity.",
   },
   {
     label: "Background noise & audio quality analysis",
-    status: "todo",
+    status: "done",
     detail: "Noise presence/type/severity, technical quality, speaker overlap, long silence.",
   },
   {
     label: "Batch results & confidence scoring",
-    status: "todo",
+    status: "done",
     detail: "Combines every signal into the final per-call result.",
   },
   {
     label: "Login & batch upload dashboard",
-    status: "todo",
+    status: "done",
     detail: "Upload a folder/ZIP + CSV manifest, track progress, review and export results.",
   },
 ];
@@ -68,9 +70,11 @@ export default function Home() {
           </p>
         </header>
 
+        <BatchDashboard />
+
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Build status
+            System status
           </h2>
           <ul className="flex flex-col gap-2">
             {milestones.map((m) => (
@@ -95,11 +99,6 @@ export default function Home() {
             ))}
           </ul>
         </section>
-
-        <footer className="text-sm text-zinc-400 dark:text-zinc-600">
-          Login and batch upload will appear here once that milestone is
-          complete.
-        </footer>
       </main>
     </div>
   );

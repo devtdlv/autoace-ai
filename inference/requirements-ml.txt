@@ -2,3 +2,11 @@ faster-whisper==1.0.3
 silero-vad==5.1.2
 numpy<2
 requests
+librosa==0.10.2.post1
+# >=4.46 required: with the installed torch's weight_norm parametrization
+# and transformers==4.44.x, superb/wav2vec2-base-superb-er's pos_conv_embed
+# weights silently fail to load (key-name mismatch) and get randomly
+# reinitialized instead — no error, just a degraded SER model. Verified
+# fixed at 4.46.3; don't downgrade below this without re-checking.
+transformers==4.46.3
+soundfile==0.12.1

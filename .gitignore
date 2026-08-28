@@ -5,8 +5,12 @@ data/labeled_samples/*
 *.mp3
 *.m4a
 *.flac
-uploads/
-batches/
+# Anchored to repo root: an unanchored `batches/` here would also match
+# web/src/app/batches/ (the dashboard's real batch-detail route) and
+# silently drop it from git — learned the hard way.
+/uploads/
+/batches/
+inference/data/
 
 # Python
 inference/.venv/
@@ -28,3 +32,7 @@ web/out/
 
 # OS
 .DS_Store
+
+# autoace's $HOME is this repo root, so tool caches land here too
+/.cache/
+/.npm/

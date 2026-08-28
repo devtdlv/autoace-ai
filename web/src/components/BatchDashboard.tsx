@@ -1,0 +1,170 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Batch } from "@/lib/api";
+
+const STATUS_STYLES: Record<Batch["status"], string> = {
+  pending: "bg-zinc-100 text-zinc-600 dark:bg-zinc-500/10 dark:text-zinc-400",
+  processing: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400",
+  done: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
+  failed: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400",
+};
+
+const POLL_INTERVAL_MS = 4000;
+
+export default function BatchDashboard() {
+  const router = useRouter();
+  const [batches, setBatches] = useState<Batch[] | null>(null);
+  const [manifestFile, setManifestFile] = useState<File | null>(null);
+  const [audioFiles, setAudioFiles] = useState<FileList | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const manifestInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
+
+  // The loader lives entirely inside the effect (rather than a shared
+  // useCallback invoked here too) — triggering a re-fetch elsewhere bumps
+  // refreshTick instead of calling this directly, which is what satisfies
+  // react-hooks/set-state-in-effect for a fetch-on-mount-and-poll effect.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      const res = await fetch("/api/batches");
+      if (cancelled) return;
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (res.ok) setBatches(await res.json());
+    }
+
+    load();
+    const interval = setInterval(load, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [router, refreshTick]);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  }
+
+  async function handleUpload(e: FormEvent) {
+    e.preventDefault();
+    if (!manifestFile || !audioFiles || audioFiles.length === 0) {
+      setUploadError("Choose a manifest CSV and at least one audio file.");
+      return;
+    }
+    setUploading(true);
+    setUploadError(null);
+
+    const formData = new FormData();
+    formData.append("manifest", manifestFile);
+
+    const isSingleZip = audioFiles.length === 1 && audioFiles[0].name.toLowerCase().endsWith(".zip");
+    if (isSingleZip) {
+      formData.append("archive", audioFiles[0]);
+    } else {
+      Array.from(audioFiles).forEach((f) => formData.append("files", f));
+    }
+
+    try {
+      const res = await fetch("/api/batches", { method: "POST", body: formData });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setUploadError(typeof body.detail === "string" ? body.detail : "Upload failed");
+        return;
+      }
+      setManifestFile(null);
+      setAudioFiles(null);
+      if (manifestInputRef.current) manifestInputRef.current.value = "";
+      if (audioInputRef.current) audioInputRef.current.value = "";
+      setRefreshTick((t) => t + 1);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Batches</h2>
+        <button
+          onClick={handleLogout}
+          className="text-sm text-zinc-500 underline hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          Sign out
+        </button>
+      </div>
+
+      <form
+        onSubmit={handleUpload}
+        className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950"
+      >
+        <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">New batch</h3>
+        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Manifest CSV (one <code>filename</code> column)
+          <input
+            ref={manifestInputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => setManifestFile(e.target.files?.[0] ?? null)}
+            className="text-sm text-zinc-700 dark:text-zinc-300"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Call recordings — a .zip archive, or select multiple audio files
+          <input
+            ref={audioInputRef}
+            type="file"
+            multiple
+            accept="audio/*,.zip"
+            onChange={(e) => setAudioFiles(e.target.files)}
+            className="text-sm text-zinc-700 dark:text-zinc-300"
+          />
+        </label>
+        {uploadError && <p className="text-sm text-red-600 dark:text-red-400">{uploadError}</p>}
+        <button
+          type="submit"
+          disabled={uploading}
+          className="self-start rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+        >
+          {uploading ? "Uploading…" : "Upload batch"}
+        </button>
+      </form>
+
+      <ul className="flex flex-col gap-2">
+        {batches === null && <li className="text-sm text-zinc-400">Loading…</li>}
+        {batches?.length === 0 && <li className="text-sm text-zinc-400">No batches yet.</li>}
+        {batches?.map((b) => (
+          <li key={b.id}>
+            <Link
+              href={`/batches/${b.id}`}
+              className="flex items-center justify-between gap-4 rounded-lg border border-zinc-200 bg-white px-4 py-3 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{b.manifest_name}</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {b.completed_calls}/{b.total_calls} calls · {new Date(b.created_at).toLocaleString()}
+                </span>
+              </div>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[b.status]}`}>
+                {b.status}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

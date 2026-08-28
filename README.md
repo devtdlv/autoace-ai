@@ -6,9 +6,11 @@ long silence, and an overall confidence score — via a fully local,
 zero-external-API pipeline (no customer audio or derived text ever leaves
 this infrastructure).
 
-**Status: under active development.** This README is updated as each
-milestone lands; see `docs/` for the memo, validation results, cost/latency
-analysis, and limitations once written.
+**Status: all 6 milestones implemented and tested** (backend: 41 automated
+tests passing; dashboard: lint + production build clean, manually verified
+end-to-end — login, upload, batch processing, review, export). See `docs/`
+for the technical memo, validation results, cost/latency analysis, and
+known limitations.
 
 ## Repository layout
 
@@ -57,9 +59,16 @@ apt-get install -y ffmpeg espeak-ng
 cd inference
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
-./.venv/bin/pip install -r requirements-ml.txt   # faster-whisper, silero-vad
+./.venv/bin/pip install -r requirements-ml.txt   # faster-whisper, silero-vad, librosa, transformers
 ./.venv/bin/pip install -r requirements-dev.txt  # pytest, for running tests
 cd ..  # back to repo root
+
+# One-time: builds inference/models/noise_reference_bank.npz (spectral
+# signatures for noise.py's noise-type matcher) from a curated ESC-50
+# subset. Needs internet access; not needed again unless the bank is
+# deleted or scripts/build_noise_reference_bank.py's category list changes.
+inference/.venv/bin/python scripts/build_noise_reference_bank.py
+
 inference/.venv/bin/uvicorn inference.api.main:app --host 127.0.0.1 --port 8001
 ```
 
@@ -88,40 +97,52 @@ separate from the fast-installing core service dependencies in
 ```bash
 cd web
 npm install
+cp ../.env.example ../.env   # then edit — see below
 npm run dev -- -p 3001
 ```
+
+The dashboard (Next.js, port 3001 in dev) and the inference API (FastAPI,
+port 8001) are separate processes. `web/next.config.ts` proxies `/api/*`
+to the API for local dev (`AUTOACE_API_ORIGIN`, default
+`http://127.0.0.1:8001`) so the browser sees them as one origin — in
+production, nginx does this instead (`deploy/nginx.conf`) and the rewrite
+never fires.
+
+Login uses a single admin credential from env vars, not multi-user
+accounts — see `.env.example` for `AUTOACE_ADMIN_USERNAME`,
+`AUTOACE_ADMIN_PASSWORD` (dev) / `AUTOACE_ADMIN_PASSWORD_HASH` (prod), and
+`AUTOACE_SECRET_KEY` (signs session cookies — set it in production so
+sessions survive a restart). Source `.env` (or export the vars) in both
+the `uvicorn` and `npm run dev` shells before starting them.
 
 ## Development plan / milestones
 
 1. ✅ Repo scaffold, ffmpeg preprocessing, FastAPI + Next.js skeletons
-2. ✅ VAD (silero-vad) + local ASR (faster-whisper) — see measured latency below
-3. Emotion path: prosody features + SER model + text-emotion model + fusion
-4. Noise / audio-quality / overlap / silence modules + synthetic validation set
-5. Schema aggregation + confidence calibration + batch CLI
-6. Dashboard: auth, upload/validate, batch processing, review, CSV/JSON export
-7. ✅ Deployment (nginx + systemd + TLS) to autoace.tdlv.dev — live, but still
-   serving the default Next.js placeholder until Milestone 6 lands
+2. ✅ VAD (silero-vad) + local ASR (faster-whisper)
+3. ✅ Emotion path: prosody features + SER model + text-emotion model + fusion
+4. ✅ Noise / audio-quality / overlap / silence modules + synthetic validation tests
+5. ✅ Schema aggregation + confidence calibration + batch CLI (`scripts/run_batch.py`)
+6. ✅ Dashboard: auth, upload/validate, batch processing, review, CSV/JSON export
+7. ✅ Deployment (nginx + systemd + TLS) to autoace.tdlv.dev — **the running
+   systemd services (`autoace-api`, `autoace-web`) still serve the code from
+   before Milestones 3-6 landed; restarting them to deploy this work is a
+   deliberate step that hasn't been taken yet** (see the note in this repo's
+   latest session summary / ask before restarting production).
 
-### Measured so far (2 vCPU / 3.8GB, no GPU — the actual deployment target)
+### Measured latency (2 vCPU / 3.8GB, no GPU — the actual deployment target)
 
-On a 13.2s synthetic test clip, warm (model already loaded in process):
-- VAD (silero-vad, ONNX): ~0.3s
-- ASR (faster-whisper "small", int8): ~7.3s (~0.55x realtime, i.e. faster
-  than realtime — a 3-minute call transcribes in under 2 minutes)
-- Model load (one-time per process, not per file): ASR ~2.3s, held warm
-  across requests via in-process caching
-
-Full latency writeup with more data points lands in `docs/latency_analysis.md`
-once the full pipeline exists.
+See `docs/latency_analysis.md` for the full per-stage breakdown. Headline
+numbers: ~1.14x real-time end-to-end (warm), ~2.3GB peak RSS with every
+model loaded — both comfortably within budget.
 
 ## Deliverables index
 
 | Deliverable | Location |
 |---|---|
-| Hosted dashboard | https://autoace.tdlv.dev (pending deployment, Milestone 7) |
+| Dashboard code (not yet deployed live — see Milestone 7 note above) | `web/`, proxied via `deploy/nginx.conf` once restarted |
 | Technical memo | `docs/technical_memo.md` |
-| Validation results + confusion matrix | `docs/validation_results.md` |
+| Validation results | `docs/validation_results.md` |
 | Cost analysis | `docs/cost_analysis.md` |
 | Latency analysis | `docs/latency_analysis.md` |
 | Failure modes / next steps | `docs/failure_modes_and_next_steps.md` |
-| CLI reproducibility path | `scripts/batch_cli.py` |
+| CLI reproducibility path | `scripts/run_batch.py` |
