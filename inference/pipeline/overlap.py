@@ -32,7 +32,13 @@ N_HARMONICS = 8
 MIN_FRAME_ENERGY = 1e-5  # ignore near-silent frames entirely
 
 UNEXPLAINED_ENERGY_THRESHOLD = 0.55     # per-frame: candidate overlap frame
-CANDIDATE_FRAME_RATIO_THRESHOLD = 0.08  # sustained across the call -> present
+# Sustained across the call -> present. Recalibrated after finding 0.08 sat
+# *below* the single-voice noise floor: single-speaker clips (TTS and
+# stereo/8kHz/mp3 variants of the same clip) measured 0.12-0.13, a genuine
+# two-voice mix measured 0.23 (see docs/failure_modes_and_next_steps.md's
+# overlap section) — 0.08 flagged every single-speaker clip as overlapping.
+# Still a small-sample heuristic calibration, not fit on labeled data.
+CANDIDATE_FRAME_RATIO_THRESHOLD = 0.18
 
 
 @dataclass

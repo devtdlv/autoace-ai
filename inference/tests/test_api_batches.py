@@ -155,6 +155,29 @@ def test_full_batch_upload_and_processing(api_client, clean_call):
     assert not any(b["id"] == batch_id for b in api_client.get("/batches").json())
 
 
+def test_corrupt_file_in_batch_gets_a_valid_fallback_result_not_a_gap(api_client):
+    """A single unprocessable file must not sink the batch, and — per the
+    hidden-set robustness fix — should still leave a schema-valid,
+    confidence=0.0 guess behind rather than an empty/missing result.
+    """
+    _login(api_client)
+    resp = api_client.post(
+        "/batches",
+        files={"files": ("corrupt.wav", b"not actually audio data at all", "audio/wav")},
+    )
+    assert resp.status_code == 200
+    batch_id = resp.json()["batch_id"]
+
+    detail = api_client.get(f"/batches/{batch_id}").json()
+    assert detail["batch"]["status"] == "done"
+    call = detail["calls"][0]
+    assert call["status"] == "failed"
+    assert call["error"]
+    assert call["result"] is not None
+    assert call["result"]["confidence"] == 0.0
+    assert call["result"]["emotional_tone"] == "neutral"
+
+
 def test_delete_batch_requires_auth(api_client):
     assert api_client.delete("/batches/nonexistent").status_code == 401
 

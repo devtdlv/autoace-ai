@@ -11,6 +11,7 @@ from inference.pipeline.schema import (
     EmotionalIntensity,
     EmotionalTone,
     Prediction,
+    fallback_prediction,
 )
 from inference.pipeline.silence import SilenceResult
 from inference.tests.conftest import REQUIRES_ESPEAK
@@ -81,4 +82,11 @@ def test_full_pipeline_produces_a_valid_prediction(synthetic_call):
 
     assert isinstance(prediction, Prediction)
     # Round-trips through the pydantic model / JSON schema cleanly.
+    assert Prediction.model_validate(prediction.model_dump())
+
+
+def test_fallback_prediction_is_schema_valid_with_zero_confidence():
+    prediction = fallback_prediction()
+    assert isinstance(prediction, Prediction)
+    assert prediction.confidence == 0.0
     assert Prediction.model_validate(prediction.model_dump())

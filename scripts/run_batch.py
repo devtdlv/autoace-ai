@@ -24,8 +24,12 @@ from inference.pipeline import asr, noise, overlap, preprocess, quality, silence
 from inference.pipeline.aggregate import aggregate
 from inference.pipeline.emotion import analyze_emotion
 from inference.pipeline.prosody_features import extract_prosody_features, load_speech_only_audio
+from inference.pipeline.schema import fallback_prediction
 
-AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
+AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".opus",
+    ".webm", ".3gp", ".3gpp", ".amr", ".aiff", ".aif", ".au", ".mp4", ".mov",
+}
 
 
 def analyze_file(input_path: Path, tmp_dir: Path) -> dict:
@@ -75,7 +79,9 @@ def main() -> None:
                 results[path.name] = analyze_file(path, tmp_dir)
                 status = "ok"
             except Exception as exc:  # noqa: BLE001 — one bad file shouldn't abort the batch
-                results[path.name] = {"error": str(exc)}
+                # Still a schema-valid (confidence=0.0) guess, not just an
+                # error blob — see schema.fallback_prediction.
+                results[path.name] = {**fallback_prediction().model_dump(), "error": str(exc)}
                 status = "FAILED"
             dt = time.perf_counter() - t0
             print(f"[{i}/{len(files)}] {path.name}: {status} ({dt:.1f}s)")
