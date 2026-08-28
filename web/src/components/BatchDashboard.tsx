@@ -22,6 +22,7 @@ export default function BatchDashboard() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const manifestInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,13 +56,13 @@ export default function BatchDashboard() {
     router.push("/login");
   }
 
-  async function handleDelete(id: string, label: string) {
-    if (!window.confirm(`Delete batch "${label}"? This can't be undone.`)) return;
+  async function handleDelete(id: string) {
     const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
     if (res.status === 401) {
       router.push("/login");
       return;
     }
+    setConfirmingDeleteId(null);
     setRefreshTick((t) => t + 1);
   }
 
@@ -172,13 +173,31 @@ export default function BatchDashboard() {
                 {b.status}
               </span>
             </Link>
-            <button
-              onClick={() => handleDelete(b.id, b.manifest_name)}
-              aria-label={`Delete batch ${b.manifest_name}`}
-              className="shrink-0 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-            >
-              Delete
-            </button>
+            {confirmingDeleteId === b.id ? (
+              <div className="flex shrink-0 items-center gap-2 text-sm">
+                <span className="text-zinc-500 dark:text-zinc-400">Delete?</span>
+                <button
+                  onClick={() => handleDelete(b.id)}
+                  className="rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setConfirmingDeleteId(null)}
+                  className="rounded-md px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmingDeleteId(b.id)}
+                aria-label={`Delete batch ${b.manifest_name}`}
+                className="shrink-0 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+              >
+                Delete
+              </button>
+            )}
           </li>
         ))}
       </ul>

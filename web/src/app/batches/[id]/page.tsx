@@ -20,6 +20,7 @@ export default function BatchDetailPage(props: PageProps<"/batches/[id]">) {
   const [batch, setBatch] = useState<Batch | null>(null);
   const [calls, setCalls] = useState<Call[] | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +52,6 @@ export default function BatchDetailPage(props: PageProps<"/batches/[id]">) {
   }, [id, router]);
 
   async function handleDelete() {
-    if (!window.confirm("Delete this batch? This can't be undone.")) return;
     const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
     if (res.status === 401) {
       router.push("/login");
@@ -92,12 +92,30 @@ export default function BatchDetailPage(props: PageProps<"/batches/[id]">) {
               >
                 Export JSON
               </a>
-              <button
-                onClick={handleDelete}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-500/10"
-              >
-                Delete
-              </button>
+              {confirmingDelete ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-zinc-500 dark:text-zinc-400">Delete?</span>
+                  <button
+                    onClick={handleDelete}
+                    className="rounded-md bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    className="rounded-md border border-zinc-300 px-3 py-1.5 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           )}
         </div>
