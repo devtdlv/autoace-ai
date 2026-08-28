@@ -88,13 +88,11 @@ def _process_batch(batch_id: str, batch_dir: Path) -> None:
 @router.post("/batches")
 async def create_batch(
     background_tasks: BackgroundTasks,
-    manifest: UploadFile,
+    manifest: UploadFile | None = None,
     archive: UploadFile | None = None,
     files: list[UploadFile] | None = None,
     user: str = Depends(require_session),
 ):
-    manifest_filenames = _parse_manifest(await manifest.read())
-
     batch_id = uuid.uuid4().hex
     batch_dir = UPLOADS_DIR / batch_id
     batch_dir.mkdir(parents=True, exist_ok=True)
@@ -115,12 +113,25 @@ async def create_batch(
             (batch_dir / f.filename).write_bytes(await f.read())
             uploaded_names.add(f.filename)
 
-    missing = [name for name in manifest_filenames if name not in uploaded_names]
-    if missing:
-        raise HTTPException(400, f"Manifest references files that were not uploaded: {missing}")
+    if not uploaded_names:
+        raise HTTPException(400, "No audio files uploaded")
+
+    # Manifest is optional: it only ever served to list which filenames to
+    # process, which is redundant once files are picked directly in the
+    # upload form. When provided, it can still be used to select a subset
+    # of a larger upload (e.g. a big ZIP where only some entries matter).
+    if manifest is not None and manifest.filename:
+        manifest_filenames = _parse_manifest(await manifest.read())
+        missing = [name for name in manifest_filenames if name not in uploaded_names]
+        if missing:
+            raise HTTPException(400, f"Manifest references files that were not uploaded: {missing}")
+        batch_label = manifest.filename
+    else:
+        manifest_filenames = sorted(uploaded_names)
+        batch_label = f"{len(manifest_filenames)} file(s), no manifest"
 
     db.create_batch(
-        batch_id, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), manifest.filename, manifest_filenames,
+        batch_id, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), batch_label, manifest_filenames,
     )
     background_tasks.add_task(_process_batch, batch_id, batch_dir)
 

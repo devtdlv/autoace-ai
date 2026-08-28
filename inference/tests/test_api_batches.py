@@ -14,17 +14,52 @@ def test_list_batches_requires_auth(api_client):
     assert api_client.get("/batches").status_code == 401
 
 
+def test_create_batch_rejects_no_audio_files(api_client):
+    _login(api_client)
+    resp = api_client.post("/batches", files={"manifest": ("m.csv", "filename\nx.wav\n", "text/csv")})
+    assert resp.status_code == 400
+    assert "No audio files" in resp.json()["detail"]
+
+
 def test_create_batch_rejects_manifest_without_filename_column(api_client):
     _login(api_client)
-    resp = api_client.post("/batches", files={"manifest": ("m.csv", "not_filename\nfoo\n", "text/csv")})
+    resp = api_client.post(
+        "/batches",
+        files={
+            "manifest": ("m.csv", "not_filename\nfoo\n", "text/csv"),
+            "files": ("foo.wav", b"fake audio bytes", "audio/wav"),
+        },
+    )
     assert resp.status_code == 400
 
 
 def test_create_batch_rejects_manifest_referencing_missing_file(api_client):
     _login(api_client)
-    resp = api_client.post("/batches", files={"manifest": ("m.csv", "filename\nmissing.wav\n", "text/csv")})
+    resp = api_client.post(
+        "/batches",
+        files={
+            "manifest": ("m.csv", "filename\nmissing.wav\n", "text/csv"),
+            "files": ("present.wav", b"fake audio bytes", "audio/wav"),
+        },
+    )
     assert resp.status_code == 400
     assert "missing.wav" in resp.json()["detail"]
+
+
+@REQUIRES_ESPEAK
+def test_create_batch_without_manifest_processes_all_uploaded_files(api_client, clean_call):
+    _login(api_client)
+    with open(clean_call, "rb") as f:
+        audio_bytes = f.read()
+
+    resp = api_client.post("/batches", files={"files": ("call.wav", audio_bytes, "audio/wav")})
+    assert resp.status_code == 200
+    batch_id = resp.json()["batch_id"]
+    assert resp.json()["total_calls"] == 1
+
+    detail = api_client.get(f"/batches/{batch_id}").json()
+    assert detail["batch"]["manifest_name"] == "1 file(s), no manifest"
+    assert detail["calls"][0]["filename"] == "call.wav"
 
 
 @REQUIRES_ESPEAK

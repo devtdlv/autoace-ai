@@ -68,15 +68,15 @@ export default function BatchDashboard() {
 
   async function handleUpload(e: FormEvent) {
     e.preventDefault();
-    if (!manifestFile || !audioFiles || audioFiles.length === 0) {
-      setUploadError("Choose a manifest CSV and at least one audio file.");
+    if (!audioFiles || audioFiles.length === 0) {
+      setUploadError("Choose at least one audio file (or a .zip of them).");
       return;
     }
     setUploading(true);
     setUploadError(null);
 
     const formData = new FormData();
-    formData.append("manifest", manifestFile);
+    if (manifestFile) formData.append("manifest", manifestFile);
 
     const isSingleZip = audioFiles.length === 1 && audioFiles[0].name.toLowerCase().endsWith(".zip");
     if (isSingleZip) {
@@ -124,16 +124,6 @@ export default function BatchDashboard() {
       >
         <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">New batch</h3>
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Manifest CSV (one <code>filename</code> column)
-          <input
-            ref={manifestInputRef}
-            type="file"
-            accept=".csv"
-            onChange={(e) => setManifestFile(e.target.files?.[0] ?? null)}
-            className="text-sm text-zinc-700 dark:text-zinc-300"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
           Call recordings — a .zip archive, or select multiple audio files
           <input
             ref={audioInputRef}
@@ -141,6 +131,17 @@ export default function BatchDashboard() {
             multiple
             accept="audio/*,.zip"
             onChange={(e) => setAudioFiles(e.target.files)}
+            className="text-sm text-zinc-700 dark:text-zinc-300"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
+          Manifest CSV (optional — a <code>filename</code> column to pick a
+          subset; if omitted, every file above is processed)
+          <input
+            ref={manifestInputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => setManifestFile(e.target.files?.[0] ?? null)}
             className="text-sm text-zinc-700 dark:text-zinc-300"
           />
         </label>
