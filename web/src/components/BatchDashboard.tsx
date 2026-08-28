@@ -124,19 +124,23 @@ export default function BatchDashboard() {
       >
         <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-50">New batch</h3>
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Call recordings — a .zip archive, or select multiple audio files
+          Call recordings — a .zip archive, or select the audio files
+          directly (multi-select). If a manifest CSV is included among
+          them, it is picked up automatically.
           <input
             ref={audioInputRef}
             type="file"
             multiple
-            accept="audio/*,.zip"
+            accept="audio/*,.zip,.csv"
             onChange={(e) => setAudioFiles(e.target.files)}
             className="text-sm text-zinc-700 dark:text-zinc-300"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Manifest CSV (optional — a <code>filename</code> column to pick a
-          subset; if omitted, every file above is processed)
+          Manifest CSV (optional, if not already included above) — a{" "}
+          <code>name</code> column (exact filename), and optionally a{" "}
+          <code>result_json</code> column with expected results for
+          comparison. Omit entirely to process every file above.
           <input
             ref={manifestInputRef}
             type="file"

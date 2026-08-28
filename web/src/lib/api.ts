@@ -21,12 +21,18 @@ export type Prediction = {
 export type CallStatus = "pending" | "processing" | "done" | "failed";
 export type BatchStatus = "pending" | "processing" | "done" | "failed";
 
+// Ground truth from a manifest's result_json column, when the batch was
+// labeled. Untrusted/evaluator-supplied — not assumed to match our exact
+// enum values, so it's typed loosely rather than as `Prediction`.
+export type ExpectedResult = Record<string, unknown>;
+
 export type Call = {
   id: string;
   batch_id: string;
   filename: string;
   status: CallStatus;
   result: Prediction | null;
+  expected: ExpectedResult | null;
   error: string | null;
 };
 

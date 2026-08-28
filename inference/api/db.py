@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS calls (
     filename TEXT NOT NULL,
     status TEXT NOT NULL,        -- pending | processing | done | failed
     result_json TEXT,
+    expected_json TEXT,          -- ground truth from the manifest's result_json column, if given
     error TEXT
 );
 """
@@ -50,6 +51,12 @@ def _connect():
 def init_db() -> None:
     with _connect() as conn:
         conn.executescript(SCHEMA)
+        # Lightweight migration: `expected_json` was added after calls
+        # tables may already exist on disk. CREATE TABLE IF NOT EXISTS
+        # above won't retrofit an existing table, so patch it here.
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(calls)").fetchall()}
+        if "expected_json" not in columns:
+            conn.execute("ALTER TABLE calls ADD COLUMN expected_json TEXT")
 
 
 @dataclass
@@ -59,6 +66,7 @@ class CallRow:
     filename: str
     status: str
     result: dict | None
+    expected: dict | None
     error: str | None
 
 
@@ -72,16 +80,19 @@ class BatchRow:
     completed_calls: int
 
 
-def create_batch(batch_id: str, created_at: str, manifest_name: str, filenames: list[str]) -> None:
+def create_batch(
+    batch_id: str, created_at: str, manifest_name: str, entries: list[tuple[str, str | None]],
+) -> None:
+    """`entries` is (filename, expected_result_json_or_None) per call."""
     with _connect() as conn:
         conn.execute(
             "INSERT INTO batches (id, created_at, status, manifest_name, total_calls, completed_calls) "
             "VALUES (?, ?, 'pending', ?, ?, 0)",
-            (batch_id, created_at, manifest_name, len(filenames)),
+            (batch_id, created_at, manifest_name, len(entries)),
         )
         conn.executemany(
-            "INSERT INTO calls (id, batch_id, filename, status) VALUES (?, ?, ?, 'pending')",
-            [(f"{batch_id}:{name}", batch_id, name) for name in filenames],
+            "INSERT INTO calls (id, batch_id, filename, status, expected_json) VALUES (?, ?, ?, 'pending', ?)",
+            [(f"{batch_id}:{name}", batch_id, name, expected) for name, expected in entries],
         )
 
 
@@ -129,6 +140,7 @@ def list_calls(batch_id: str) -> list[CallRow]:
             CallRow(
                 id=r["id"], batch_id=r["batch_id"], filename=r["filename"], status=r["status"],
                 result=json.loads(r["result_json"]) if r["result_json"] else None,
+                expected=json.loads(r["expected_json"]) if r["expected_json"] else None,
                 error=r["error"],
             )
             for r in rows
