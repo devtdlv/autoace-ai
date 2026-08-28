@@ -55,6 +55,16 @@ export default function BatchDashboard() {
     router.push("/login");
   }
 
+  async function handleDelete(id: string, label: string) {
+    if (!window.confirm(`Delete batch "${label}"? This can't be undone.`)) return;
+    const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
+    setRefreshTick((t) => t + 1);
+  }
+
   async function handleUpload(e: FormEvent) {
     e.preventDefault();
     if (!manifestFile || !audioFiles || audioFiles.length === 0) {
@@ -147,11 +157,11 @@ export default function BatchDashboard() {
         {batches === null && <li className="text-sm text-zinc-400">Loading…</li>}
         {batches?.length === 0 && <li className="text-sm text-zinc-400">No batches yet.</li>}
         {batches?.map((b) => (
-          <li key={b.id}>
-            <Link
-              href={`/batches/${b.id}`}
-              className="flex items-center justify-between gap-4 rounded-lg border border-zinc-200 bg-white px-4 py-3 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
-            >
+          <li
+            key={b.id}
+            className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+          >
+            <Link href={`/batches/${b.id}`} className="flex flex-1 items-center justify-between gap-4">
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">{b.manifest_name}</span>
                 <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -162,6 +172,13 @@ export default function BatchDashboard() {
                 {b.status}
               </span>
             </Link>
+            <button
+              onClick={() => handleDelete(b.id, b.manifest_name)}
+              aria-label={`Delete batch ${b.manifest_name}`}
+              className="shrink-0 rounded-md px-2 py-1 text-sm text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>

@@ -62,3 +62,17 @@ def test_full_batch_upload_and_processing(api_client, clean_call):
     assert csv_resp.status_code == 200
     assert "emotional_tone" in csv_resp.text
     assert "call.wav" in csv_resp.text
+
+    delete_resp = api_client.delete(f"/batches/{batch_id}")
+    assert delete_resp.status_code == 200
+    assert api_client.get(f"/batches/{batch_id}").status_code == 404
+    assert not any(b["id"] == batch_id for b in api_client.get("/batches").json())
+
+
+def test_delete_batch_requires_auth(api_client):
+    assert api_client.delete("/batches/nonexistent").status_code == 401
+
+
+def test_delete_nonexistent_batch_is_404(api_client):
+    _login(api_client)
+    assert api_client.delete("/batches/nonexistent").status_code == 404

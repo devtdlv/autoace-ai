@@ -14,6 +14,7 @@ and this is a 2 vCPU box, not a compute cluster.
 
 import csv
 import io
+import shutil
 import time
 import uuid
 import zipfile
@@ -137,6 +138,16 @@ def get_batch(batch_id: str, user: str = Depends(require_session)):
     if not batch:
         raise HTTPException(404, "Batch not found")
     return {"batch": vars(batch), "calls": [vars(c) for c in db.list_calls(batch_id)]}
+
+
+@router.delete("/batches/{batch_id}")
+def remove_batch(batch_id: str, user: str = Depends(require_session)):
+    batch = db.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+    db.delete_batch(batch_id)
+    shutil.rmtree(UPLOADS_DIR / batch_id, ignore_errors=True)
+    return {"ok": True}
 
 
 @router.get("/batches/{batch_id}/export")

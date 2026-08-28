@@ -116,6 +116,12 @@ def list_batches() -> list[BatchRow]:
         return [BatchRow(**dict(r)) for r in rows]
 
 
+def delete_batch(batch_id: str) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM calls WHERE batch_id = ?", (batch_id,))
+        conn.execute("DELETE FROM batches WHERE id = ?", (batch_id,))
+
+
 def list_calls(batch_id: str) -> list[CallRow]:
     with _connect() as conn:
         rows = conn.execute("SELECT * FROM calls WHERE batch_id = ? ORDER BY filename", (batch_id,)).fetchall()

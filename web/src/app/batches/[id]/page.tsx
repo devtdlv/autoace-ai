@@ -50,6 +50,16 @@ export default function BatchDetailPage(props: PageProps<"/batches/[id]">) {
     };
   }, [id, router]);
 
+  async function handleDelete() {
+    if (!window.confirm("Delete this batch? This can't be undone.")) return;
+    const res = await fetch(`/api/batches/${id}`, { method: "DELETE" });
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
+    router.push("/");
+  }
+
   if (notFound) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-zinc-50 dark:bg-black">
@@ -82,6 +92,12 @@ export default function BatchDetailPage(props: PageProps<"/batches/[id]">) {
               >
                 Export JSON
               </a>
+              <button
+                onClick={handleDelete}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:border-zinc-700 dark:text-red-400 dark:hover:bg-red-500/10"
+              >
+                Delete
+              </button>
             </div>
           )}
         </div>
